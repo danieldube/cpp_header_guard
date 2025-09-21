@@ -22,3 +22,20 @@ hatch shell
 The pre-commit hooks reuse the same Hatch-managed environment, so the commands
 above ensure linting and typing run with the dependencies declared in
 `pyproject.toml` and mirrored in `requirements-test.txt`.
+
+## Pre-commit integration
+
+The project publishes a pre-commit hook so repositories can enforce consistent
+include guards automatically. Add the following to your
+`.pre-commit-config.yaml` to enable it:
+
+```yaml
+repos:
+  - repo: https://github.com/danieldube/cpp_header_guard
+    rev: v0.1.0  # Replace with the desired tag or commit.
+    hooks:
+      - id: header-guard
+```
+
+The hook rewrites any staged header files so they use the repository-relative
+guard name convention implemented by this tool.

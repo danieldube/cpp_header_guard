@@ -10,14 +10,18 @@ import header_guard
 
 
 def test_parse_args_returns_path() -> None:
-    path = header_guard.parse_args(["script", "file.hpp"])
-    assert isinstance(path, Path)
-    assert str(path) == "file.hpp"
+    paths = header_guard.parse_args(["script", "file.hpp"])
+    assert paths == (Path("file.hpp"),)
 
 
 def test_parse_args_raises_on_missing_argument() -> None:
     with pytest.raises(ValueError):
         header_guard.parse_args(["script"])
+
+
+def test_parse_args_supports_multiple_paths() -> None:
+    paths = header_guard.parse_args(["script", "first.h", "second.hpp"])
+    assert paths == (Path("first.h"), Path("second.hpp"))
 
 
 @pytest.mark.parametrize(
@@ -198,6 +202,40 @@ def test_write_if_changed_writes_when_needed(tmp_path: Path) -> None:
     path.write_text("old", encoding="utf-8")
     header_guard.write_if_changed(path, "old", "new")
     assert path.read_text(encoding="utf-8") == "new"
+
+
+def test_main_processes_multiple_paths(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+
+    header_one = tmp_path / "first.hpp"
+    header_one.write_text("int value;\n", encoding="utf-8")
+
+    header_two = tmp_path / "include" / "second.h"
+    header_two.parent.mkdir()
+    header_two.write_text("int other;\n", encoding="utf-8")
+
+    non_header = tmp_path / "note.txt"
+    non_header.write_text("plain text\n", encoding="utf-8")
+
+    header_guard.main(
+        [
+            "script",
+            str(header_one),
+            str(header_two),
+            str(non_header),
+        ]
+    )
+
+    guard_one = header_guard.header_guard_name(tmp_path, header_one)
+    guard_two = header_guard.header_guard_name(tmp_path, header_two)
+
+    assert header_one.read_text(encoding="utf-8") == header_guard.ensure_guard(
+        "int value;\n", guard_one
+    )
+    assert header_two.read_text(encoding="utf-8") == header_guard.ensure_guard(
+        "int other;\n", guard_two
+    )
+    assert non_header.read_text(encoding="utf-8") == "plain text\n"
 
 
 def test_write_if_changed_skips_when_unchanged(tmp_path: Path) -> None:
