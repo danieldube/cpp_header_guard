@@ -1,0 +1,196 @@
+"""Ensure C++ headers use consistent include guards."""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+from typing import Optional, Sequence, Tuple
+
+HEADER_SUFFIXES: Tuple[str, ...] = (".h", ".hh", ".hpp", ".hxx", ".h++")
+LEADING_COMMENTS = re.compile(
+    r"^(?P<prefix>(?:\s*//[^\n]*\n|/\*.*?\*/\s*)*)", re.DOTALL
+)
+
+
+def parse_args(argv: Sequence[str]) -> Path:
+    if len(argv) != 2:
+        raise ValueError("Usage: header_guard.py <path>")
+    return Path(argv[1])
+
+
+def is_header(path: Path) -> bool:
+    return path.suffix.lower() in HEADER_SUFFIXES
+
+
+def find_git_dir(path: Path) -> Optional[Path]:
+    for candidate in (path,) + tuple(path.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def locate_repo_root(path: Path) -> Path:
+    root = find_git_dir(path.resolve())
+    if root is None:
+        raise ValueError("Repository root not found")
+    return root
+
+
+def clean_part(part: str) -> str:
+    cleaned = "".join((ch if ch.isalnum() else "_") for ch in part.upper())
+    return re.sub("_+", "_", cleaned)
+
+
+def ensure_valid_start(name: str) -> str:
+    return name if not name[0].isdigit() else f"_{name}"
+
+
+def header_guard_name(root: Path, path: Path) -> str:
+    relative = path.resolve().relative_to(root.resolve())
+    cleaned = [clean_part(part).strip("_") for part in relative.parts]
+    name = "_".join(part for part in cleaned if part) or "HEADER"
+    return f"{ensure_valid_start(name)}_"
+
+
+def comment_prefix(text: str) -> str:
+    match = LEADING_COMMENTS.match(text)
+    return "" if match is None else match.group("prefix")
+
+
+def next_code_index(lines: list[str], start: int) -> Optional[int]:
+    for index in range(start, len(lines)):
+        if lines[index].strip():
+            return index
+    return None
+
+
+def is_pragma_once(line: str) -> bool:
+    return line.lstrip().startswith("#pragma once")
+
+
+def guard_name_from_ifndef(line: str) -> Optional[str]:
+    parts = line.strip().split()
+    return parts[1] if len(parts) >= 2 and parts[0] == "#ifndef" else None
+
+
+def guard_name_from_define(line: str) -> Optional[str]:
+    parts = line.strip().split()
+    return parts[1] if len(parts) >= 2 and parts[0] == "#define" else None
+
+
+def macro_guard_define_index(
+    lines: list[str], start: int, name: str
+) -> Optional[int]:
+    idx = next_code_index(lines, start + 1)
+    return (
+        idx
+        if idx is not None and guard_name_from_define(lines[idx]) == name
+        else None
+    )
+
+
+def matches_endif(line: str, name: str) -> bool:
+    if not line.startswith("#endif"):
+        return False
+    return line == "#endif" or name in line
+
+
+def guard_end_index(lines: list[str], name: str) -> Optional[int]:
+    indices = [idx for idx, line in enumerate(lines) if line.strip()]
+    if not indices:
+        return None
+    return (
+        indices[-1]
+        if matches_endif(lines[indices[-1]].strip(), name)
+        else None
+    )
+
+
+def guard_define_and_end(
+    lines: list[str], start: int, name: str
+) -> Optional[Tuple[int, int]]:
+    define_index = macro_guard_define_index(lines, start, name)
+    if define_index is None:
+        return None
+    return (
+        (define_index, end_index)
+        if (end_index := guard_end_index(lines, name)) is not None
+        else None
+    )
+
+
+def remove_guard_segments(
+    lines: list[str], start: int, define_index: int, end_index: int
+) -> list[str]:
+    return (
+        lines[:start]
+        + lines[start + 1 : define_index]
+        + lines[define_index + 1 : end_index]
+        + lines[end_index + 1 :]
+    )
+
+
+def strip_macro_guard(lines: list[str], start: int) -> Tuple[list[str], bool]:
+    name = guard_name_from_ifndef(lines[start])
+    info = guard_define_and_end(lines, start, name) if name else None
+    return (
+        (lines, False)
+        if info is None
+        else (
+            remove_guard_segments(lines, start, info[0], info[1]),
+            True,
+        )
+    )
+
+
+def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
+    start = next_code_index(lines, 0)
+    if start is None:
+        return lines, False
+    return (
+        (
+            lines[:start] + lines[start + 1 :],
+            True,
+        )
+        if is_pragma_once(lines[start])
+        else strip_macro_guard(lines, start)
+    )
+
+
+def build_guard(guard: str, body: str) -> str:
+    content = body.lstrip("\n")
+    content = (
+        f"{content}\n" if content and not content.endswith("\n") else content
+    )
+    return f"#ifndef {guard}\n#define {guard}\n\n{content}#endif  // {guard}\n"
+
+
+def ensure_guard(text: str, guard: str) -> str:
+    prefix = comment_prefix(text)
+    body_lines, _ = remove_guard_lines(
+        text[len(prefix) :].splitlines(keepends=True)
+    )
+    return prefix + build_guard(guard, "".join(body_lines))
+
+
+def write_if_changed(path: Path, original: str, updated: str) -> None:
+    if original != updated:
+        path.write_text(updated, encoding="utf-8")
+
+
+def apply_guard(path: Path) -> None:
+    root = locate_repo_root(path)
+    text = path.read_text(encoding="utf-8")
+    guard = header_guard_name(root, path)
+    write_if_changed(path, text, ensure_guard(text, guard))
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    path = parse_args(list(sys.argv if argv is None else argv))
+    if is_header(path):
+        apply_guard(path)
+
+
+if __name__ == "__main__":
+    main()
