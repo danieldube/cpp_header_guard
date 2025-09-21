@@ -27,13 +27,13 @@ repos:
     hooks:
       - id: pylint
         name: pylint (hatch env)
-        entry: hatch run pylint
+        entry: hatch env run -- pylint
         language: system
         types: [python]
         args: ["--rcfile=.pylintrc"]
       - id: mypy
         name: mypy (hatch env)
-        entry: hatch run mypy
+        entry: hatch env run -- mypy
         language: system
         types: [python]
         args: ["--config-file", "mypy.ini"]
