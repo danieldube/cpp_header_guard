@@ -35,6 +35,7 @@ include = ["src/header_guard", "LICENSE", "mypy.ini", "tests"]
 dependencies = [
     "pytest>=8.0",
     "mypy>=1.10",
+    "pylint>=3.2.3",
 ]
 
 [tool.hatch.envs.default.scripts]
