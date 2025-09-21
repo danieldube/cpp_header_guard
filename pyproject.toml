@@ -32,8 +32,11 @@ test = [
 [project.scripts]
 header-guard = "header_guard:main"
 
+[tool.hatch.build]
+sources = ["src"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/header_guard"]
+packages = ["header_guard"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -51,6 +54,9 @@ dev-mode = true
 
 [tool.hatch.envs.default.scripts]
 test = "pytest"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [tool.black]
 line-length = 79

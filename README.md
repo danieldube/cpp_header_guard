@@ -9,6 +9,9 @@ environments and packaging metadata. Install Hatch (for example via
 `pip install hatch`) and then run the built-in tasks:
 
 ```bash
+# Create the managed environment the first time you work on the project
+hatch env create
+
 # Run the test suite
 hatch run test
 
@@ -16,5 +19,6 @@ hatch run test
 hatch shell
 ```
 
-The pre-commit hooks reuse the same Hatch-managed environment, so make sure the
-environment is created before running `pre-commit run` for the first time.
+The pre-commit hooks reuse the same Hatch-managed environment, so the commands
+above ensure linting and typing run with the dependencies declared in
+`pyproject.toml` and mirrored in `requirements-test.txt`.
