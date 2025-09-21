@@ -1,6 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cpp-header-guard"
+version = "0.1.0"
+description = "Utilities for ensuring consistent include guards in C++ header files."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+keywords = ["cpp", "header", "guard"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/danieldube/cpp_header_guard"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "mypy>=1.10",
+    "pylint>=3.2.3",
+]
+
+[project.scripts]
+header-guard = "header_guard:main"
+
+[tool.hatch.build]
+sources = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["header_guard"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/header_guard",
+    "LICENSE",
+    "mypy.ini",
+    "tests",
+    "requirements.txt",
+    "requirements-test.txt",
+]
+
+[tool.hatch.envs.default]
+features = ["test"]
+dev-mode = true
+
+[tool.hatch.envs.default.scripts]
+test = "pytest"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
 [tool.black]
 line-length = 79
-target-version = ["py310"]
+target-version = ["py39", "py310"]
 
 [tool.isort]
 profile = "black"

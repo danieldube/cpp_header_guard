@@ -23,17 +23,17 @@ repos:
     rev: 7.1.0
     hooks:
       - id: flake8
-  - repo: https://github.com/pycqa/pylint
-    rev: v3.2.3
+  - repo: local
     hooks:
       - id: pylint
+        name: pylint (hatch env)
+        entry: scripts/hatch-python-module.sh pylint
+        language: system
+        types: [python]
         args: ["--rcfile=.pylintrc"]
-        additional_dependencies:
-          - pytest
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
       - id: mypy
+        name: mypy (hatch env)
+        entry: scripts/hatch-python-module.sh mypy
+        language: system
+        types: [python]
         args: ["--config-file", "mypy.ini"]
-        additional_dependencies:
-          - pytest
