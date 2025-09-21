@@ -13,10 +13,10 @@ LEADING_COMMENTS = re.compile(
 )
 
 
-def parse_args(argv: Sequence[str]) -> Path:
-    if len(argv) != 2:
-        raise ValueError("Usage: header_guard.py <path>")
-    return Path(argv[1])
+def parse_args(argv: Sequence[str]) -> Tuple[Path, ...]:
+    if len(argv) <= 1:
+        raise ValueError("Usage: header-guard <path> [<path> ...]")
+    return tuple(Path(argument) for argument in argv[1:])
 
 
 def is_header(path: Path) -> bool:
@@ -187,9 +187,10 @@ def apply_guard(path: Path) -> None:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    path = parse_args(list(sys.argv if argv is None else argv))
-    if is_header(path):
-        apply_guard(path)
+    paths = parse_args(list(sys.argv if argv is None else argv))
+    for path in paths:
+        if is_header(path):
+            apply_guard(path)
 
 
 if __name__ == "__main__":

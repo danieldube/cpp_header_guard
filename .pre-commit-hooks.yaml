@@ -1,0 +1,6 @@
+- id: header-guard
+  name: header-guard
+  description: Ensure C and C++ headers use consistent include guards.
+  entry: header-guard
+  language: python
+  files: "\\.(h|hh|hpp|hxx|h\+\+)$"
