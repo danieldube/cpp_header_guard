@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 import sys
 from pathlib import Path
@@ -12,11 +13,59 @@ LEADING_COMMENTS = re.compile(
     r"^(?P<prefix>(?:\s*//[^\n]*\n|/\*.*?\*/\s*)*)", re.DOTALL
 )
 
+SPACES_OPTION = "--spaces-between-endif-and-comment"
 
-def parse_args(argv: Sequence[str]) -> Tuple[Path, ...]:
+
+@dataclass(frozen=True)
+class Arguments:
+    paths: Tuple[Path, ...]
+    spaces_between_endif_and_comment: int
+
+
+def parse_spaces_argument(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise ValueError(
+            "--spaces-between-endif-and-comment must be an integer"
+        ) from error
+    if parsed < 0:
+        raise ValueError(
+            "--spaces-between-endif-and-comment must be >= 0"
+        )
+    return parsed
+
+
+def parse_args(argv: Sequence[str]) -> Arguments:
     if len(argv) <= 1:
         raise ValueError("Usage: header-guard <path> [<path> ...]")
-    return tuple(Path(argument) for argument in argv[1:])
+
+    paths: list[Path] = []
+    spaces_between_endif_and_comment = 2
+
+    arguments = iter(argv[1:])
+    for argument in arguments:
+        if argument.startswith(f"{SPACES_OPTION}=") or argument == SPACES_OPTION:
+            if argument == SPACES_OPTION:
+                try:
+                    value = next(arguments)
+                except StopIteration as error:
+                    raise ValueError(
+                        "--spaces-between-endif-and-comment requires a value"
+                    ) from error
+            else:
+                value = argument.split("=", 1)[1]
+            spaces_between_endif_and_comment = parse_spaces_argument(value)
+            continue
+
+        if argument.startswith("--"):
+            raise ValueError(f"Unknown option: {argument}")
+        paths.append(Path(argument))
+
+    if not paths:
+        raise ValueError("At least one path must be provided")
+
+    return Arguments(tuple(paths), spaces_between_endif_and_comment)
 
 
 def is_header(path: Path) -> bool:
@@ -158,20 +207,34 @@ def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
     )
 
 
-def build_guard(guard: str, body: str) -> str:
+def build_guard(
+    guard: str, body: str, spaces_between_endif_and_comment: int = 2
+) -> str:
     content = body.lstrip("\n")
     content = (
         f"{content}\n" if content and not content.endswith("\n") else content
     )
-    return f"#ifndef {guard}\n#define {guard}\n\n{content}#endif  // {guard}\n"
+    separator = " " * spaces_between_endif_and_comment
+    return (
+        f"#ifndef {guard}\n#define {guard}\n\n"
+        f"{content}#endif{separator}// {guard}\n"
+    )
 
 
-def ensure_guard(text: str, guard: str) -> str:
+def ensure_guard(
+    text: str,
+    guard: str,
+    spaces_between_endif_and_comment: int = 2,
+) -> str:
     prefix = comment_prefix(text)
     body_lines, _ = remove_guard_lines(
         text[len(prefix) :].splitlines(keepends=True)
     )
-    return prefix + build_guard(guard, "".join(body_lines))
+    return prefix + build_guard(
+        guard,
+        "".join(body_lines),
+        spaces_between_endif_and_comment,
+    )
 
 
 def write_if_changed(path: Path, original: str, updated: str) -> None:
@@ -179,18 +242,22 @@ def write_if_changed(path: Path, original: str, updated: str) -> None:
         path.write_text(updated, encoding="utf-8")
 
 
-def apply_guard(path: Path) -> None:
+def apply_guard(path: Path, spaces_between_endif_and_comment: int = 2) -> None:
     root = locate_repo_root(path)
     text = path.read_text(encoding="utf-8")
     guard = header_guard_name(root, path)
-    write_if_changed(path, text, ensure_guard(text, guard))
+    write_if_changed(
+        path,
+        text,
+        ensure_guard(text, guard, spaces_between_endif_and_comment),
+    )
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    paths = parse_args(list(sys.argv if argv is None else argv))
-    for path in paths:
+    arguments = parse_args(list(sys.argv if argv is None else argv))
+    for path in arguments.paths:
         if is_header(path):
-            apply_guard(path)
+            apply_guard(path, arguments.spaces_between_endif_and_comment)
 
 
 if __name__ == "__main__":

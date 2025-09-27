@@ -39,3 +39,25 @@ repos:
 
 The hook rewrites any staged header files so they use the repository-relative
 guard name convention implemented by this tool.
+
+### Configurable spacing
+
+The tool accepts an optional `--spaces-between-endif-and-comment` argument to
+control how many spaces appear between `#endif` and the trailing comment. The
+default is `2`:
+
+```bash
+header-guard --spaces-between-endif-and-comment=1 path/to/header.hpp
+```
+
+When using the tool via pre-commit you can pass the same flag through the hook
+configuration:
+
+```yaml
+repos:
+  - repo: https://github.com/danieldube/cpp_header_guard
+    rev: v0.1.0
+    hooks:
+      - id: header-guard
+        args: ["--spaces-between-endif-and-comment=1"]
+```
