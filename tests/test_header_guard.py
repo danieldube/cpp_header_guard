@@ -190,7 +190,9 @@ def test_build_guard_wraps_body() -> None:
 
 def test_build_guard_honours_spacing_option() -> None:
     body = "int value;\n"
-    result = header_guard.build_guard("GUARD", body, spaces_between_endif_and_comment=0)
+    result = header_guard.build_guard(
+        "GUARD", body, spaces_between_endif_and_comment=0
+    )
     assert result.endswith("#endif// GUARD\n")
 
 
@@ -299,7 +301,9 @@ def test_apply_guard_accepts_spacing_parameter(tmp_path: Path) -> None:
     header.parent.mkdir(parents=True)
     header.write_text("int value;\n", encoding="utf-8")
     header_guard.apply_guard(header, spaces_between_endif_and_comment=1)
-    assert header.read_text(encoding="utf-8").endswith("#endif // INCLUDE_SAMPLE_H_\n")
+    assert header.read_text(encoding="utf-8").endswith(
+        "#endif // INCLUDE_SAMPLE_H_\n"
+    )
 
 
 def test_main_processes_header_file(tmp_path: Path) -> None:
@@ -328,7 +332,9 @@ def test_main_respects_spacing_option(tmp_path: Path) -> None:
             str(header),
         ]
     )
-    assert header.read_text(encoding="utf-8").endswith("#endif     // SRC_VALUE_HPP_\n")
+    assert header.read_text(encoding="utf-8").endswith(
+        "#endif     // SRC_VALUE_HPP_\n"
+    )
 
 
 def test_main_ignores_non_header(tmp_path: Path) -> None:

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -14,6 +14,7 @@ LEADING_COMMENTS = re.compile(
     r"^(?P<prefix>(?:\s*//[^\n]*\n|/\*.*?\*/\s*)*)", re.DOTALL
 )
 DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT = 2
+DEFAULT_SPACING = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
 
 
 @dataclass(frozen=True)
@@ -166,7 +167,7 @@ def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
 def build_guard(
     guard: str,
     body: str,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACING,
 ) -> str:
     content = body.lstrip("\n")
     content = (
@@ -183,7 +184,7 @@ def build_guard(
 def ensure_guard(
     text: str,
     guard: str,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACING,
 ) -> str:
     prefix = comment_prefix(text)
     body_lines, _ = remove_guard_lines(
@@ -203,7 +204,7 @@ def write_if_changed(path: Path, original: str, updated: str) -> None:
 
 def apply_guard(
     path: Path,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACING,
 ) -> None:
     root = locate_repo_root(path)
     text = path.read_text(encoding="utf-8")
