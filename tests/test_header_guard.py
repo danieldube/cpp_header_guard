@@ -10,8 +10,12 @@ import header_guard
 
 
 def test_parse_args_returns_path() -> None:
-    paths = header_guard.parse_args(["script", "file.hpp"])
-    assert paths == (Path("file.hpp"),)
+    arguments = header_guard.parse_args(["script", "file.hpp"])
+    assert arguments.paths == (Path("file.hpp"),)
+    assert (
+        arguments.spaces_between_endif_and_comment
+        == header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    )
 
 
 def test_parse_args_raises_on_missing_argument() -> None:
@@ -20,8 +24,23 @@ def test_parse_args_raises_on_missing_argument() -> None:
 
 
 def test_parse_args_supports_multiple_paths() -> None:
-    paths = header_guard.parse_args(["script", "first.h", "second.hpp"])
-    assert paths == (Path("first.h"), Path("second.hpp"))
+    arguments = header_guard.parse_args(["script", "first.h", "second.hpp"])
+    assert arguments.paths == (Path("first.h"), Path("second.hpp"))
+
+
+def test_parse_args_accepts_spacing_option() -> None:
+    arguments = header_guard.parse_args(
+        ["script", "--spaces-between-endif-and-comment", "4", "file.hpp"]
+    )
+    assert arguments.paths == (Path("file.hpp"),)
+    assert arguments.spaces_between_endif_and_comment == 4
+
+
+def test_parse_args_rejects_negative_spacing() -> None:
+    with pytest.raises(ValueError):
+        header_guard.parse_args(
+            ["script", "--spaces-between-endif-and-comment", "-1", "file.hpp"]
+        )
 
 
 @pytest.mark.parametrize(
@@ -169,6 +188,14 @@ def test_build_guard_wraps_body() -> None:
     assert header_guard.build_guard("GUARD", body) == expected
 
 
+def test_build_guard_honours_spacing_option() -> None:
+    body = "int value;\n"
+    result = header_guard.build_guard(
+        "GUARD", body, spaces_between_endif_and_comment=0
+    )
+    assert result.endswith("#endif// GUARD\n")
+
+
 def test_ensure_guard_inserts_guard_after_comments() -> None:
     text = "// header\nint value;\n"
     updated = header_guard.ensure_guard(text, "GUARD")
@@ -195,6 +222,16 @@ def test_ensure_guard_replaces_existing_guard() -> None:
         "int value;\n"
         "#endif  // NEW_GUARD\n"
     )
+
+
+def test_ensure_guard_can_customize_spacing() -> None:
+    text = "int value;\n"
+    updated = header_guard.ensure_guard(
+        text,
+        "GUARD",
+        spaces_between_endif_and_comment=3,
+    )
+    assert updated.endswith("#endif   // GUARD\n")
 
 
 def test_write_if_changed_writes_when_needed(tmp_path: Path) -> None:
@@ -258,6 +295,17 @@ def test_apply_guard_updates_file(tmp_path: Path) -> None:
     assert header.read_text(encoding="utf-8") == expected
 
 
+def test_apply_guard_accepts_spacing_parameter(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    header = tmp_path / "include" / "sample.h"
+    header.parent.mkdir(parents=True)
+    header.write_text("int value;\n", encoding="utf-8")
+    header_guard.apply_guard(header, spaces_between_endif_and_comment=1)
+    assert header.read_text(encoding="utf-8").endswith(
+        "#endif // INCLUDE_SAMPLE_H_\n"
+    )
+
+
 def test_main_processes_header_file(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
     header = tmp_path / "src" / "value.hpp"
@@ -269,6 +317,24 @@ def test_main_processes_header_file(tmp_path: Path) -> None:
         "#endif  // SRC_VALUE_HPP_\n"
     )
     assert header.read_text(encoding="utf-8") == expected
+
+
+def test_main_respects_spacing_option(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    header = tmp_path / "src" / "value.hpp"
+    header.parent.mkdir(parents=True)
+    header.write_text("int value;\n", encoding="utf-8")
+    header_guard.main(
+        [
+            "script",
+            "--spaces-between-endif-and-comment",
+            "5",
+            str(header),
+        ]
+    )
+    assert header.read_text(encoding="utf-8").endswith(
+        "#endif     // SRC_VALUE_HPP_\n"
+    )
 
 
 def test_main_ignores_non_header(tmp_path: Path) -> None:
