@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
-import sys
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
+
+import click
 
 HEADER_SUFFIXES: Tuple[str, ...] = (".h", ".hh", ".hpp", ".hxx", ".h++")
 LEADING_COMMENTS = re.compile(
     r"^(?P<prefix>(?:\s*//[^\n]*\n|/\*.*?\*/\s*)*)", re.DOTALL
 )
+DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT = 2
 
 
-def parse_args(argv: Sequence[str]) -> Tuple[Path, ...]:
-    if len(argv) <= 1:
-        raise ValueError("Usage: header-guard <path> [<path> ...]")
-    return tuple(Path(argument) for argument in argv[1:])
+@dataclass(frozen=True)
+class Arguments:
+    """Command line arguments supported by the header guard tool."""
+
+    paths: Tuple[Path, ...]
+    spaces_between_endif_and_comment: int
 
 
 def is_header(path: Path) -> bool:
@@ -158,20 +163,37 @@ def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
     )
 
 
-def build_guard(guard: str, body: str) -> str:
+def build_guard(
+    guard: str,
+    body: str,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+) -> str:
     content = body.lstrip("\n")
     content = (
         f"{content}\n" if content and not content.endswith("\n") else content
     )
-    return f"#ifndef {guard}\n#define {guard}\n\n{content}#endif  // {guard}\n"
+    spacing = " " * spaces_between_endif_and_comment
+    return (
+        f"#ifndef {guard}\n"
+        f"#define {guard}\n\n"
+        f"{content}#endif{spacing}// {guard}\n"
+    )
 
 
-def ensure_guard(text: str, guard: str) -> str:
+def ensure_guard(
+    text: str,
+    guard: str,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+) -> str:
     prefix = comment_prefix(text)
     body_lines, _ = remove_guard_lines(
         text[len(prefix) :].splitlines(keepends=True)
     )
-    return prefix + build_guard(guard, "".join(body_lines))
+    return prefix + build_guard(
+        guard,
+        "".join(body_lines),
+        spaces_between_endif_and_comment,
+    )
 
 
 def write_if_changed(path: Path, original: str, updated: str) -> None:
@@ -179,18 +201,76 @@ def write_if_changed(path: Path, original: str, updated: str) -> None:
         path.write_text(updated, encoding="utf-8")
 
 
-def apply_guard(path: Path) -> None:
+def apply_guard(
+    path: Path,
+    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+) -> None:
     root = locate_repo_root(path)
     text = path.read_text(encoding="utf-8")
     guard = header_guard_name(root, path)
-    write_if_changed(path, text, ensure_guard(text, guard))
+    write_if_changed(
+        path,
+        text,
+        ensure_guard(text, guard, spaces_between_endif_and_comment),
+    )
+
+
+def process_paths(
+    paths: Sequence[Path], spaces_between_endif_and_comment: int
+) -> None:
+    for path in paths:
+        if is_header(path):
+            apply_guard(path, spaces_between_endif_and_comment)
+
+
+@click.command()
+@click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
+@click.option(
+    "--spaces-between-endif-and-comment",
+    "spaces_between_endif_and_comment",
+    type=click.IntRange(min=0),
+    default=DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    show_default=True,
+    help="Number of spaces between '#endif' and the trailing comment.",
+)
+def cli(
+    paths: Tuple[Path, ...], spaces_between_endif_and_comment: int
+) -> None:
+    if not paths:
+        raise click.UsageError("Provide at least one header path to format.")
+    process_paths(paths, spaces_between_endif_and_comment)
+
+
+CLI = cli
+
+
+def parse_args(argv: Sequence[str]) -> Arguments:
+    if not argv:
+        raise ValueError("Usage: header-guard <path> [<path> ...]")
+
+    arguments = list(argv[1:])
+    try:
+        with CLI.make_context("header-guard", arguments) as context:
+            paths = tuple(context.params["paths"])
+            spaces_between_endif_and_comment = context.params[
+                "spaces_between_endif_and_comment"
+            ]
+    except click.ClickException as error:
+        raise ValueError(str(error)) from error
+
+    if not paths:
+        raise ValueError("Usage: header-guard <path> [<path> ...]")
+
+    return Arguments(paths, spaces_between_endif_and_comment)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    paths = parse_args(list(sys.argv if argv is None else argv))
-    for path in paths:
-        if is_header(path):
-            apply_guard(path)
+    if argv is None:
+        CLI.main()
+        return
+
+    arguments = parse_args(argv)
+    process_paths(arguments.paths, arguments.spaces_between_endif_and_comment)
 
 
 if __name__ == "__main__":

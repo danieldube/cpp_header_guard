@@ -35,7 +35,11 @@ repos:
     rev: v0.1.0  # Replace with the desired tag or commit.
     hooks:
       - id: header-guard
+        # Optional: control the spacing before the trailing comment.
+        args: ["--spaces-between-endif-and-comment", "3"]
 ```
 
 The hook rewrites any staged header files so they use the repository-relative
-guard name convention implemented by this tool.
+guard name convention implemented by this tool. The command line interface
+exposes the same `--spaces-between-endif-and-comment` option, allowing you to
+customize how many blanks appear between `#endif` and the trailing comment.
