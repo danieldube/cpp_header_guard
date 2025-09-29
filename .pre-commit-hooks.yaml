@@ -1,6 +1,9 @@
 - id: header-guard
-  name: header-guard
-  description: Ensure C and C++ headers use consistent include guards.
+  name: cpp header guard
+  description: Ensure C/C++ header files have deterministic include guards derived from the repository layout.
   entry: header-guard
   language: python
+  types_or: [c, c++]
   files: '\.(h|hh|hpp|hxx|h\+\+)$'
+  require_serial: true
+  pass_filenames: true
