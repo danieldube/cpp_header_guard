@@ -8,10 +8,7 @@ from typing import Optional, Sequence, Tuple
 
 import click
 
-from .core import (
-    DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
-    process_paths,
-)
+from .core import DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT, process_paths
 
 
 @dataclass(frozen=True)
@@ -39,7 +36,11 @@ def cli(
 
     if not paths:
         raise click.UsageError("Provide at least one header path to format.")
-    process_paths(paths, spaces_between_endif_and_comment)
+
+    try:
+        process_paths(paths, spaces_between_endif_and_comment)
+    except FileNotFoundError as error:
+        raise click.ClickException(str(error)) from error
 
 
 CLI = cli

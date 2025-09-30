@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
-
+from typing import Iterator, Optional, Sequence, Tuple
 
 HEADER_SUFFIXES: Tuple[str, ...] = (".h", ".hh", ".hpp", ".hxx", ".h++")
 LEADING_COMMENTS = re.compile(
@@ -224,7 +223,7 @@ def _remove_guard_structure(
 
 
 def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
-    """Remove any header guard from *lines* and report whether one was found."""
+    """Remove any header guard from *lines* and report if one was found."""
 
     body, suffix, removed = _remove_guard_structure(lines)
     return body + suffix, removed
@@ -233,7 +232,9 @@ def remove_guard_lines(lines: list[str]) -> Tuple[list[str], bool]:
 def build_guard(
     guard: str,
     body: str,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = (
+        DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    ),
 ) -> str:
     """Return the header content wrapped in a guard named *guard*."""
 
@@ -253,7 +254,9 @@ def build_guard(
 def ensure_guard(
     text: str,
     guard: str,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = (
+        DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    ),
 ) -> str:
     """Return *text* rewritten to use the guard named *guard*."""
 
@@ -280,7 +283,9 @@ def write_if_changed(path: Path, original: str, updated: str) -> None:
 
 def apply_guard(
     path: Path,
-    spaces_between_endif_and_comment: int = DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
+    spaces_between_endif_and_comment: int = (
+        DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    ),
 ) -> None:
     """Apply the canonical include guard to *path* when it is a header file."""
 
@@ -294,11 +299,32 @@ def apply_guard(
     )
 
 
+def _iter_header_files(path: Path) -> Iterator[Path]:
+    """Yield all header files reachable from *path*.
+
+    Direct header files are yielded as-is. Directories are traversed
+    recursively. ``FileNotFoundError`` is raised when *path* does not exist
+    so callers can report a clear error to the user.
+    """
+
+    if not path.exists():
+        raise FileNotFoundError(f"Path does not exist: {path}")
+
+    if path.is_dir():
+        for candidate in path.rglob("*"):
+            if candidate.is_file() and is_header(candidate):
+                yield candidate
+        return
+
+    if is_header(path):
+        yield path
+
+
 def process_paths(
     paths: Sequence[Path], spaces_between_endif_and_comment: int
 ) -> None:
     """Apply guards to all header files contained in *paths*."""
 
     for path in paths:
-        if is_header(path):
-            apply_guard(path, spaces_between_endif_and_comment)
+        for header in _iter_header_files(path):
+            apply_guard(header, spaces_between_endif_and_comment)

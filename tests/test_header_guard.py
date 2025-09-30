@@ -373,3 +373,34 @@ def test_main_ignores_non_header(tmp_path: Path) -> None:
     source.write_text("int main() { return 0; }\n", encoding="utf-8")
     header_guard.main(["script", str(source)])
     assert source.read_text(encoding="utf-8") == "int main() { return 0; }\n"
+
+
+def test_process_paths_handles_directories(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".git").mkdir()
+
+    header = project / "include" / "dir" / "value.hpp"
+    header.parent.mkdir(parents=True)
+    header.write_text("int value;\n", encoding="utf-8")
+
+    other = project / "include" / "note.txt"
+    other.write_text("plain text\n", encoding="utf-8")
+
+    header_guard.process_paths(
+        [project], header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    )
+
+    guard = header_guard.header_guard_name(project, header)
+    assert header.read_text(encoding="utf-8") == header_guard.ensure_guard(
+        "int value;\n", guard
+    )
+    assert other.read_text(encoding="utf-8") == "plain text\n"
+
+
+def test_process_paths_raises_when_path_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "missing" / "file.hpp"
+    with pytest.raises(FileNotFoundError):
+        header_guard.process_paths(
+            [missing], header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+        )

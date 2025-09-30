@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .cli import Arguments, CLI, main, parse_args
+from .cli import CLI, Arguments, main, parse_args
 from .core import (
     DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT,
     HEADER_SUFFIXES,
