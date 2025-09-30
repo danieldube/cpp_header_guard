@@ -129,6 +129,17 @@ def test_guard_end_index_identifies_last_guard_line() -> None:
     assert header_guard.guard_end_index(lines, "GUARD") == 3
 
 
+def test_guard_end_index_ignores_trailing_comment_lines() -> None:
+    lines = [
+        "#ifndef GUARD\n",
+        "#define GUARD\n",
+        "content\n",
+        "#endif  // GUARD\n",
+        "// trailing\n",
+    ]
+    assert header_guard.guard_end_index(lines, "GUARD") == 3
+
+
 def test_matches_endif_checks_guard_name() -> None:
     assert header_guard.matches_endif("#endif  // GUARD", "GUARD")
     assert not header_guard.matches_endif("#endif  // OTHER", "GUARD")
@@ -221,6 +232,24 @@ def test_ensure_guard_replaces_existing_guard() -> None:
         "#define NEW_GUARD\n\n"
         "int value;\n"
         "#endif  // NEW_GUARD\n"
+    )
+
+
+def test_ensure_guard_preserves_trailing_comment() -> None:
+    text = (
+        "#ifndef OLD_GUARD\n"
+        "#define OLD_GUARD\n\n"
+        "int value;\n"
+        "#endif  // OLD_GUARD\n"
+        "// trailing comment\n"
+    )
+    updated = header_guard.ensure_guard(text, "NEW_GUARD")
+    assert updated == (
+        "#ifndef NEW_GUARD\n"
+        "#define NEW_GUARD\n\n"
+        "int value;\n"
+        "#endif  // NEW_GUARD\n"
+        "// trailing comment\n"
     )
 
 
@@ -344,3 +373,34 @@ def test_main_ignores_non_header(tmp_path: Path) -> None:
     source.write_text("int main() { return 0; }\n", encoding="utf-8")
     header_guard.main(["script", str(source)])
     assert source.read_text(encoding="utf-8") == "int main() { return 0; }\n"
+
+
+def test_process_paths_handles_directories(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".git").mkdir()
+
+    header = project / "include" / "dir" / "value.hpp"
+    header.parent.mkdir(parents=True)
+    header.write_text("int value;\n", encoding="utf-8")
+
+    other = project / "include" / "note.txt"
+    other.write_text("plain text\n", encoding="utf-8")
+
+    header_guard.process_paths(
+        [project], header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    )
+
+    guard = header_guard.header_guard_name(project, header)
+    assert header.read_text(encoding="utf-8") == header_guard.ensure_guard(
+        "int value;\n", guard
+    )
+    assert other.read_text(encoding="utf-8") == "plain text\n"
+
+
+def test_process_paths_raises_when_path_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "missing" / "file.hpp"
+    with pytest.raises(FileNotFoundError):
+        header_guard.process_paths(
+            [missing], header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+        )
