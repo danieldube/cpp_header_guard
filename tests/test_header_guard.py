@@ -129,6 +129,17 @@ def test_guard_end_index_identifies_last_guard_line() -> None:
     assert header_guard.guard_end_index(lines, "GUARD") == 3
 
 
+def test_guard_end_index_ignores_trailing_comment_lines() -> None:
+    lines = [
+        "#ifndef GUARD\n",
+        "#define GUARD\n",
+        "content\n",
+        "#endif  // GUARD\n",
+        "// trailing\n",
+    ]
+    assert header_guard.guard_end_index(lines, "GUARD") == 3
+
+
 def test_matches_endif_checks_guard_name() -> None:
     assert header_guard.matches_endif("#endif  // GUARD", "GUARD")
     assert not header_guard.matches_endif("#endif  // OTHER", "GUARD")
@@ -221,6 +232,24 @@ def test_ensure_guard_replaces_existing_guard() -> None:
         "#define NEW_GUARD\n\n"
         "int value;\n"
         "#endif  // NEW_GUARD\n"
+    )
+
+
+def test_ensure_guard_preserves_trailing_comment() -> None:
+    text = (
+        "#ifndef OLD_GUARD\n"
+        "#define OLD_GUARD\n\n"
+        "int value;\n"
+        "#endif  // OLD_GUARD\n"
+        "// trailing comment\n"
+    )
+    updated = header_guard.ensure_guard(text, "NEW_GUARD")
+    assert updated == (
+        "#ifndef NEW_GUARD\n"
+        "#define NEW_GUARD\n\n"
+        "int value;\n"
+        "#endif  // NEW_GUARD\n"
+        "// trailing comment\n"
     )
 
 
