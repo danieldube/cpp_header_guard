@@ -39,7 +39,7 @@ header-guard = "header_guard:main"
 sources = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["header_guard"]
+packages = ["src/header_guard"]
 
 [tool.hatch.build.targets.sdist]
 include = [
