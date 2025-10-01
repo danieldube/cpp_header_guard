@@ -38,9 +38,11 @@ def locate_repo_root(path: Path) -> Path:
         If no ``.git`` directory is found in the ancestry.
     """
 
-    root = find_git_dir(path.resolve())
+    resolved = path.resolve()
+    starting_point = resolved if resolved.is_dir() else resolved.parent
+    root = find_git_dir(starting_point)
     if root is None:
-        raise ValueError("Repository root not found")
+        raise ValueError(f"Repository root not found for {resolved}")
     return root
 
 
@@ -311,9 +313,13 @@ def _iter_header_files(path: Path) -> Iterator[Path]:
         raise FileNotFoundError(f"Path does not exist: {path}")
 
     if path.is_dir():
-        for candidate in path.rglob("*"):
-            if candidate.is_file() and is_header(candidate):
-                yield candidate
+        candidates = (
+            candidate
+            for candidate in path.rglob("*")
+            if candidate.is_file() and is_header(candidate)
+        )
+        for candidate in sorted(candidates):
+            yield candidate
         return
 
     if is_header(path):
@@ -325,6 +331,11 @@ def process_paths(
 ) -> None:
     """Apply guards to all header files contained in *paths*."""
 
+    seen: set[Path] = set()
     for path in paths:
         for header in _iter_header_files(path):
+            resolved = header.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
             apply_guard(header, spaces_between_endif_and_comment)

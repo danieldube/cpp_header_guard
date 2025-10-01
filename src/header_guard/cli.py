@@ -47,12 +47,12 @@ CLI = cli
 
 
 def parse_args(argv: Sequence[str]) -> Arguments:
-    """Parse *argv* into :class:`Arguments` without invoking Click's CLI."""
+    """Parse command line arguments without invoking Click's CLI machinery."""
 
-    if not argv:
+    arguments = list(argv)
+    if not arguments:
         raise ValueError("Usage: header-guard <path> [<path> ...]")
 
-    arguments = list(argv[1:])
     try:
         with CLI.make_context("header-guard", arguments) as context:
             paths = tuple(context.params["paths"])
