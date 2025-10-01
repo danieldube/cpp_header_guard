@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 
 import header_guard
+import header_guard.core as core
 
 
 def test_parse_args_returns_path() -> None:
-    arguments = header_guard.parse_args(["script", "file.hpp"])
+    arguments = header_guard.parse_args(["file.hpp"])
     assert arguments.paths == (Path("file.hpp"),)
     assert (
         arguments.spaces_between_endif_and_comment
@@ -20,17 +21,17 @@ def test_parse_args_returns_path() -> None:
 
 def test_parse_args_raises_on_missing_argument() -> None:
     with pytest.raises(ValueError):
-        header_guard.parse_args(["script"])
+        header_guard.parse_args([])
 
 
 def test_parse_args_supports_multiple_paths() -> None:
-    arguments = header_guard.parse_args(["script", "first.h", "second.hpp"])
+    arguments = header_guard.parse_args(["first.h", "second.hpp"])
     assert arguments.paths == (Path("first.h"), Path("second.hpp"))
 
 
 def test_parse_args_accepts_spacing_option() -> None:
     arguments = header_guard.parse_args(
-        ["script", "--spaces-between-endif-and-comment", "4", "file.hpp"]
+        ["--spaces-between-endif-and-comment", "4", "file.hpp"]
     )
     assert arguments.paths == (Path("file.hpp"),)
     assert arguments.spaces_between_endif_and_comment == 4
@@ -39,7 +40,7 @@ def test_parse_args_accepts_spacing_option() -> None:
 def test_parse_args_rejects_negative_spacing() -> None:
     with pytest.raises(ValueError):
         header_guard.parse_args(
-            ["script", "--spaces-between-endif-and-comment", "-1", "file.hpp"]
+            ["--spaces-between-endif-and-comment", "-1", "file.hpp"]
         )
 
 
@@ -66,7 +67,8 @@ def test_find_git_dir_locates_root(tmp_path: Path) -> None:
 
 
 def test_locate_repo_root_raises_when_missing(tmp_path: Path) -> None:
-    with pytest.raises(ValueError):
+    message = f"Repository root not found for {tmp_path.resolve()}"
+    with pytest.raises(ValueError, match=message):
         header_guard.locate_repo_root(tmp_path)
 
 
@@ -285,7 +287,6 @@ def test_main_processes_multiple_paths(tmp_path: Path) -> None:
 
     header_guard.main(
         [
-            "script",
             str(header_one),
             str(header_two),
             str(non_header),
@@ -340,7 +341,7 @@ def test_main_processes_header_file(tmp_path: Path) -> None:
     header = tmp_path / "src" / "value.hpp"
     header.parent.mkdir(parents=True)
     header.write_text("int value;\n", encoding="utf-8")
-    header_guard.main(["script", str(header)])
+    header_guard.main([str(header)])
     expected = (
         "#ifndef SRC_VALUE_HPP_\n#define SRC_VALUE_HPP_\n\nint value;\n"
         "#endif  // SRC_VALUE_HPP_\n"
@@ -355,7 +356,6 @@ def test_main_respects_spacing_option(tmp_path: Path) -> None:
     header.write_text("int value;\n", encoding="utf-8")
     header_guard.main(
         [
-            "script",
             "--spaces-between-endif-and-comment",
             "5",
             str(header),
@@ -371,7 +371,7 @@ def test_main_ignores_non_header(tmp_path: Path) -> None:
     source = tmp_path / "src" / "main.cpp"
     source.parent.mkdir(parents=True)
     source.write_text("int main() { return 0; }\n", encoding="utf-8")
-    header_guard.main(["script", str(source)])
+    header_guard.main([str(source)])
     assert source.read_text(encoding="utf-8") == "int main() { return 0; }\n"
 
 
@@ -396,6 +396,28 @@ def test_process_paths_handles_directories(tmp_path: Path) -> None:
         "int value;\n", guard
     )
     assert other.read_text(encoding="utf-8") == "plain text\n"
+
+
+def test_process_paths_deduplicates_headers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".git").mkdir()
+
+    header = project / "value.hpp"
+    header.write_text("int value;\n", encoding="utf-8")
+
+    calls: list[Path] = []
+
+    def fake_apply(path: Path, spaces: int) -> None:
+        calls.append(path)
+
+    monkeypatch.setattr(core, "apply_guard", fake_apply)
+
+    header_guard.process_paths(
+        [header, header], header_guard.DEFAULT_SPACES_BETWEEN_ENDIF_AND_COMMENT
+    )
+
+    assert calls == [header]
 
 
 def test_process_paths_raises_when_path_missing(tmp_path: Path) -> None:
